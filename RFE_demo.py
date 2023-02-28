@@ -16,18 +16,62 @@ import matplotlib.pyplot as plt
 
 # Load training input data, output data, and feature names
 x_train = np.loadtxt(f'./data/standardized_training_inputs.csv', delimiter = ',')
-y_train = np.log(np.loadtxt(f'./data/training_output.csv', delimiter= ','))
+y_train = np.loadtxt(f'./data/training_output.csv', delimiter= ',')
 feature_names = np.loadtxt('./data/training_data_names.csv', delimiter = ',', dtype='str')
-y_train = np.exp(y_train)
 
 # Split the data into training and testing sets
 x_train, x_test, y_train, y_test = train_test_split(x_train, y_train, test_size=0.2, random_state=42)
 
-# Initialize the NeuralNetRFE object
-nn_rfe = NeuralNetRFE(n_features=x_train.shape[1], hidden_layer_sizes=(100, 50), importance='weights', max_nn_iter = 1000)
+### Baseline model performance (with all features)
+nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter = 1000)
+nn.fit(x_train, y_train)
+y_pred = nn.predict(x_test)
+mse = ((y_test - y_pred)**2).mean()
+
+plt.scatter(y_pred, y_test)
+
+nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter = 1000)
+nn.fit(x_train, np.log(y_train))
+y_pred = nn.predict(x_test)
+mse_log = ((y_test - np.exp(y_pred))**2).mean()
+
+plt.scatter(y_pred, np.log(y_test))
+
+plt.scatter(np.exp(y_pred), y_test)
 
 
+
+#%%
+# Find the preferred number of features
+check_n_features = np.flip(np.arange(1,x_train.shape[1]))
+max_iter = 200
+test_mse = []
+test_mpe = []
+
+xTr = x_train.copy()
+xTe = x_test.copy()
+
+for n in check_n_features:
+    print(f'Running selection for {n} features.')
+    nn_rfe = NeuralNetRFE(n_features=xTr.shape[1], hidden_layer_sizes=(100, 50), importance='weights', max_nn_iter = max_iter)
+    selected_features = nn_rfe.feature_selection(xTr, y_train, n_features_to_select=n)
+    selected_feature_indices = nn_rfe.selected_feature_indices
     
+    nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter = max_iter)
+    nn.fit(selected_features, y_train)
+    x_test_selected = xTe[:, selected_feature_indices]
+    y_pred = nn.predict(x_test_selected)
+    test_mpe.append(np.abs((y_test - y_pred) / y_pred).mean())
+    test_mse.append(((y_test - y_pred)**2).mean())
+    xTr = selected_features
+    xTe = x_test_selected
+    
+plt.scatter(check_n_features,test_mse)
+plt.ylim([0,500])  
+
+
+
+"""  
 # Train a neural network with the selected features
 
 n_repeats = 5
@@ -76,38 +120,16 @@ plt.scatter(np.exp(y_pred), np.exp(y_test))
 
 
 
-# Find the preferred number of features
-check_n_features = np.flip(np.arange(1,x_train.shape[1]))
-max_iter = 200
-test_mse = []
-test_mpe = []
-
-xTr = x_train.copy()
-xTe = x_test.copy()
-
-for n in check_n_features:
-    print(f'Running selection for {n} features.')
-    nn_rfe = NeuralNetRFE(n_features=xTr.shape[1], hidden_layer_sizes=(100, 50), importance='weights', max_nn_iter = max_iter)
-    selected_features = nn_rfe.feature_selection(xTr, y_train, n_features_to_select=n)
-    selected_feature_indices = nn_rfe.selected_feature_indices
-    
-    nn = MLPRegressor(hidden_layer_sizes=(100, 50), max_iter = max_iter)
-    nn.fit(selected_features, y_train)
-    x_test_selected = xTe[:, selected_feature_indices]
-    y_pred = nn.predict(x_test_selected)
-    test_mpe.append(np.abs((y_test - y_pred) / y_pred).mean())
-    test_mse.append(((y_test - y_pred)**2).mean())
-    xTr = selected_features
-    xTe = x_test_selected
-    
-plt.scatter(check_n_features,test_mse)
-plt.ylim([0,500])
-
-
-
+"""
 
 
 """
+
+# Initialize the NeuralNetRFE object
+nn_rfe = NeuralNetRFE(n_features=x_train.shape[1], hidden_layer_sizes=(100, 50), importance='weights', max_nn_iter = 1000)
+
+
+
 # Select the top 5 features using Recursive Feature Elimination
 selected_features = nn_rfe.feature_selection(x_train, y_train, n_features_to_select=100)
 selected_feature_indices = nn_rfe.selected_feature_indices
